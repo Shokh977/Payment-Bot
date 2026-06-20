@@ -1,14 +1,6 @@
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.types import InlineKeyboardMarkup
 
-PAYMENT_METHODS = [
-    ("click_card",  "Click karta o'tkazma"),
-    ("payme_card",  "Payme karta o'tkazma"),
-    ("uzcard",      "Uzcard"),
-    ("humo",        "Humo"),
-    ("other",       "Boshqa"),
-]
-
 REJECT_REASONS = [
     ("payment_not_found",  "📸 To'lov topilmadi"),
     ("wrong_amount",       "💰 Noto'g'ri summa"),
@@ -26,37 +18,19 @@ def payment_instructions_kb(enrollment_id: int, card_number: str) -> InlineKeybo
     return b.as_markup()
 
 
-def admin_notification_kb(enrollment_id: int, admin_url: str) -> InlineKeyboardMarkup:
+def admin_notification_kb(enrollment_id: int, admin_url: str, expected_amount: int = 0) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="✅ Tasdiqlash",         callback_data=f"admin_approve:{enrollment_id}")
-    b.button(text="❌ Bekor qilish",       callback_data=f"admin_reject:{enrollment_id}")
-    b.button(text="🌐 Admin panelda ochish", url=admin_url)
+    b.button(text="✅ Tasdiqlash",          callback_data=f"admin_approve:{enrollment_id}:{expected_amount}")
+    b.button(text="❌ Bekor qilish",        callback_data=f"admin_reject:{enrollment_id}")
+    b.button(text="🌐 Admin panel",         url=admin_url)
     b.adjust(2, 1)
     return b.as_markup()
 
 
-def payment_method_kb(enrollment_id: int) -> InlineKeyboardMarkup:
+def admin_confirm_kb(enrollment_id: int, amount: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    for key, label in PAYMENT_METHODS:
-        b.button(text=label, callback_data=f"pm:{enrollment_id}:{key}")
-    b.adjust(1)
-    return b.as_markup()
-
-
-def amount_confirm_kb(enrollment_id: int, expected: int, method: str) -> InlineKeyboardMarkup:
-    b = InlineKeyboardBuilder()
-    b.button(text=f"✅ Ha, {expected // 100:,} so'm".replace(",", " "),
-             callback_data=f"amt_ok:{enrollment_id}:{method}:{expected}")
-    b.button(text="✏️ Boshqa summa kiriting",
-             callback_data=f"amt_custom:{enrollment_id}:{method}")
-    b.adjust(1)
-    return b.as_markup()
-
-
-def final_confirm_kb(enrollment_id: int, method: str, amount: int) -> InlineKeyboardMarkup:
-    b = InlineKeyboardBuilder()
-    b.button(text="✅ Ha, kursni ochish", callback_data=f"grant_ok:{enrollment_id}:{method}:{amount}")
-    b.button(text="❌ Bekor qilish",      callback_data=f"grant_cancel:{enrollment_id}")
+    b.button(text="✅ Ha, kursni ochish", callback_data=f"grant_ok:{enrollment_id}:{amount}")
+    b.button(text="❌ Yo'q, bekor",       callback_data=f"grant_cancel:{enrollment_id}")
     b.adjust(1)
     return b.as_markup()
 
@@ -71,8 +45,8 @@ def reject_reason_kb(enrollment_id: int) -> InlineKeyboardMarkup:
 
 def user_cancel_confirm_kb(enrollment_id: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="✅ Ha, bekor qilaman",  callback_data=f"cancel_confirm:{enrollment_id}")
-    b.button(text="🔙 Yo'q, orqaga",       callback_data="cancel_abort")
+    b.button(text="✅ Ha, bekor qilaman", callback_data=f"cancel_confirm:{enrollment_id}")
+    b.button(text="🔙 Yo'q, orqaga",      callback_data="cancel_abort")
     b.adjust(2)
     return b.as_markup()
 

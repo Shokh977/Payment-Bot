@@ -9,9 +9,5 @@ class PaymentStates(StatesGroup):
 
 
 class AdminApprovalStates(StatesGroup):
-    selecting_payment_method = State()
-    confirming_amount        = State()
-    entering_custom_amount   = State()
-    final_confirmation       = State()
-    selecting_reject_reason  = State()
-    entering_custom_reason   = State()
+    selecting_reject_reason = State()
+    entering_custom_reason  = State()

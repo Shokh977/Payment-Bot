@@ -21,15 +21,6 @@ router = Router()
 
 CODE_PATTERN = re.compile(r"^PAY-[A-Z0-9]{4}-[A-Z0-9]{4}$", re.IGNORECASE)
 
-PAYMENT_METHOD_LABELS = {
-    "click_card": "Click karta o'tkazma",
-    "payme_card": "Payme karta o'tkazma",
-    "uzcard":     "Uzcard",
-    "humo":       "Humo",
-    "other":      "Boshqa",
-}
-
-
 def _fmt_money(tiyin: int) -> str:
     som = tiyin // 100
     return f"{som:,} so'm".replace(",", " ")
@@ -111,6 +102,8 @@ async def handle_reference_code(message: Message, state: FSMContext):
         expected_amount=enrollment["expected_amount"],
         course_title=enrollment["course_title"],
         user_name=enrollment["user_name"],
+        user_username=enrollment.get("user_username", ""),
+        reference_code=enrollment.get("reference_code", ""),
         user_id=enrollment["user_id"],
     )
     await state.set_state(PaymentStates.waiting_for_screenshot)
@@ -187,15 +180,20 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
     )
 
     # Notify admins
-    course_title = data.get("course_title", "—")
-    user_name    = data.get("user_name", "—")
-    exp_amount   = data.get("expected_amount", 0)
-    ref_code     = data.get("reference_code", f"#{enrollment_id}")
+    course_title  = data.get("course_title", "—")
+    user_name     = data.get("user_name", "—")
+    user_username = data.get("user_username", "")
+    exp_amount    = data.get("expected_amount", 0)
+    ref_code      = data.get("reference_code", f"#{enrollment_id}")
+
+    user_display = user_name
+    if user_username:
+        user_display += f" (@{user_username})"
 
     admin_text = (
         f"🔔 <b>YANGI TO'LOV TASDIQLASH KERAK</b>\n\n"
         f"📋 Kod: <code>{ref_code}</code>\n"
-        f"👤 Foydalanuvchi: {user_name}\n"
+        f"👤 Foydalanuvchi: {user_display}\n"
         f"📚 Kurs: {course_title}\n"
         f"💰 Kutilgan summa: {_fmt_money(exp_amount)}\n"
         f"🕐 Yuborildi: hozirgina\n\n"
@@ -203,7 +201,7 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
     )
 
     admin_url = f"https://sahifalab.uz/admin"
-    admin_kb  = inline.admin_notification_kb(enrollment_id, admin_url)
+    admin_kb  = inline.admin_notification_kb(enrollment_id, admin_url, exp_amount)
 
     for admin_id in settings.ADMIN_TELEGRAM_IDS:
         try:
@@ -240,135 +238,50 @@ async def cb_resend_screenshot(callback: CallbackQuery, state: FSMContext):
 # ── Admin approval callbacks ───────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("admin_approve:"))
-async def cb_admin_approve(callback: CallbackQuery, state: FSMContext):
-    enrollment_id = int(callback.data.split(":")[1])
-    await callback.answer()
-    await callback.message.answer(
-        "To'lov usulini tanlang:",
-        reply_markup=inline.payment_method_kb(enrollment_id),
-    )
-    await state.update_data(enrollment_id=enrollment_id)
-    from bot.states.payment import AdminApprovalStates
-    await state.set_state(AdminApprovalStates.selecting_payment_method)
-
-
-@router.callback_query(F.data.startswith("pm:"))
-async def cb_payment_method(callback: CallbackQuery, state: FSMContext):
-    _, enrollment_id_str, method = callback.data.split(":", 2)
-    enrollment_id = int(enrollment_id_str)
-    await callback.answer()
-
-    data = await state.get_data()
-    expected = data.get("expected_amount", 0)
-
-    await callback.message.answer(
-        f"Haqiqiy to'langan summa kutilgan summa bilan bir xilmi?\n"
-        f"Kutilgan: <b>{_fmt_money(expected)}</b>",
-        parse_mode="HTML",
-        reply_markup=inline.amount_confirm_kb(enrollment_id, expected, method),
-    )
-    from bot.states.payment import AdminApprovalStates
-    await state.set_state(AdminApprovalStates.confirming_amount)
-
-
-@router.callback_query(F.data.startswith("amt_ok:"))
-async def cb_amount_ok(callback: CallbackQuery, state: FSMContext):
-    parts = callback.data.split(":")  # amt_ok:id:method:amount
+async def cb_admin_approve(callback: CallbackQuery):
+    parts = callback.data.split(":")
     enrollment_id = int(parts[1])
-    method        = parts[2]
-    amount        = int(parts[3])
+    amount        = int(parts[2]) if len(parts) > 2 else 0
     await callback.answer()
-
-    data = await state.get_data()
-    course = data.get("course_title", f"#{enrollment_id}")
-    user   = data.get("user_name", "—")
 
     await callback.message.answer(
-        f"<b>Tasdiqlash:</b>\n"
-        f"• Kurs: {course}\n"
-        f"• Foydalanuvchi: {user}\n"
-        f"• To'lov: {PAYMENT_METHOD_LABELS.get(method, method)}\n"
-        f"• Summa: <b>{_fmt_money(amount)}</b>\n\n"
-        "Tasdiqlaysizmi?",
+        f"To'lovni tasdiqlaysizmi?\n\n"
+        f"💰 Summa: <b>{_fmt_money(amount)}</b>\n"
+        f"📋 So'rov #{enrollment_id}",
         parse_mode="HTML",
-        reply_markup=inline.final_confirm_kb(enrollment_id, method, amount),
+        reply_markup=inline.admin_confirm_kb(enrollment_id, amount),
     )
-    from bot.states.payment import AdminApprovalStates
-    await state.set_state(AdminApprovalStates.final_confirmation)
-
-
-@router.callback_query(F.data.startswith("amt_custom:"))
-async def cb_amount_custom(callback: CallbackQuery, state: FSMContext):
-    _, enrollment_id_str, method = callback.data.split(":", 2)
-    await callback.answer()
-    await callback.message.answer("Haqiqiy to'langan summani kiriting (so'mda):")
-    from bot.states.payment import AdminApprovalStates
-    await state.update_data(enrollment_id=int(enrollment_id_str), pending_method=method)
-    await state.set_state(AdminApprovalStates.entering_custom_amount)
-
-
-@router.message(F.from_user, lambda m: True)
-async def handle_custom_amount(message: Message, state: FSMContext):
-    from bot.states.payment import AdminApprovalStates
-    current = await state.get_state()
-    if current != AdminApprovalStates.entering_custom_amount:
-        return
-
-    try:
-        amount_som = int(message.text.strip().replace(" ", "").replace(",", ""))
-        amount_tiyin = amount_som * 100
-    except ValueError:
-        await message.answer("Faqat son kiriting (masalan: 100000)")
-        return
-
-    data = await state.get_data()
-    enrollment_id = data["enrollment_id"]
-    method        = data["pending_method"]
-    course        = data.get("course_title", f"#{enrollment_id}")
-    user          = data.get("user_name", "—")
-
-    await message.answer(
-        f"<b>Tasdiqlash:</b>\n"
-        f"• Kurs: {course}\n"
-        f"• Foydalanuvchi: {user}\n"
-        f"• To'lov: {PAYMENT_METHOD_LABELS.get(method, method)}\n"
-        f"• Summa: <b>{_fmt_money(amount_tiyin)}</b>\n\n"
-        "Tasdiqlaysizmi?",
-        parse_mode="HTML",
-        reply_markup=inline.final_confirm_kb(enrollment_id, method, amount_tiyin),
-    )
-    await state.set_state(AdminApprovalStates.final_confirmation)
 
 
 @router.callback_query(F.data.startswith("grant_ok:"))
 async def cb_grant_ok(callback: CallbackQuery, state: FSMContext, bot: Bot):
-    parts = callback.data.split(":")  # grant_ok:id:method:amount
+    parts = callback.data.split(":")  # grant_ok:id:amount
     enrollment_id = int(parts[1])
-    method        = parts[2]
-    amount        = int(parts[3])
+    amount        = int(parts[2])
     await callback.answer("Ishlanmoqda...")
 
+    # Get user data BEFORE clearing state
+    data = await state.get_data()
+    user_tg_id = data.get("user_id")
+    course     = data.get("course_title", "")
+
     try:
-        await api_client.grant_enrollment(enrollment_id, amount, method)
+        await api_client.grant_enrollment(enrollment_id, amount, "card_transfer")
     except Exception as exc:
         await callback.message.answer(f"❌ Xato: {exc}")
         return
 
-    await callback.message.answer("✅ Kurs ochildi va foydalanuvchiga bildirishnoma yuborildi.")
     await state.clear()
+    await callback.message.answer("✅ Kurs ochildi va foydalanuvchiga bildirishnoma yuborildi.")
 
-    # Notify the user
-    data = await state.get_data()
-    user_tg_id = data.get("user_id")
-    course     = data.get("course_title", "")
     if user_tg_id:
         try:
             await bot.send_message(
                 user_tg_id,
                 f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
-                f"To'lov tasdiqlandi va kurs sizga ochildi.\n\n"
-                f"📚 <b>{course}</b>\n\n"
-                f"Sahifalab ilovasini oching va o'rganishni boshlang!",
+                f"To'lov tasdiqlandi va kurs sizga ochildi."
+                + (f"\n\n📚 <b>{course}</b>" if course else "")
+                + "\n\nSahifalab ilovasini oching va o'rganishni boshlang!",
                 parse_mode="HTML",
                 reply_markup=inline.open_app_kb(),
             )
