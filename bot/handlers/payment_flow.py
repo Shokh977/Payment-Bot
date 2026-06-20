@@ -222,6 +222,21 @@ async def handle_non_photo(message: Message):
     )
 
 
+# ── Resend screenshot (from /status menu) ─────────────────────────────────────
+
+@router.callback_query(F.data.startswith("resend_ss:"))
+async def cb_resend_screenshot(callback: CallbackQuery, state: FSMContext):
+    enrollment_id = int(callback.data.split(":")[1])
+    await state.set_state(PaymentStates.waiting_for_screenshot)
+    await state.update_data(enrollment_id=enrollment_id)
+    await callback.answer()
+    await callback.message.answer(
+        "📸 Iltimos, to'lov <b>screenshot'ini yuboring</b> (rasm sifatida).\n\n"
+        "To'lov tasdiqlanishi uchun to'liq summani ko'rsatadigan rasmni yuboring.",
+        parse_mode="HTML",
+    )
+
+
 # ── Admin approval callbacks ───────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("admin_approve:"))
