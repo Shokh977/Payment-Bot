@@ -152,7 +152,7 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
 
     proof_url: str | None = None
     try:
-        if settings.BUNNY_STORAGE_ZONE and settings.BUNNY_API_KEY and settings.BUNNY_CDN_URL:
+        if settings.BUNNY_STORAGE_ZONE and settings.BUNNY_API_KEY and settings.BUNNY_CDN_HOSTNAME:
             photo_bytes = await storage.download_telegram_photo(bot, file_id)
             ts = int(datetime.now(timezone.utc).timestamp())
             filename = f"{enrollment_id}_{ts}.jpg"
