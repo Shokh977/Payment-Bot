@@ -1,30 +1,29 @@
-"""Upload payment proof screenshots to Supabase Storage."""
+"""Upload payment proof screenshots to Bunny.net Storage."""
 import io
 import httpx
 from bot.config import settings
 
-BUCKET = "payment-proofs"
+STORAGE_PATH = "payment-proofs"
 
 
 async def upload_screenshot(file_bytes: bytes, filename: str) -> str | None:
     """
-    Upload screenshot bytes to Supabase Storage.
-    Returns the public URL or None if Supabase is not configured / upload fails.
+    Upload screenshot bytes to Bunny.net Storage.
+    Returns the CDN public URL or None if Bunny is not configured / upload fails.
     """
-    if not settings.SUPABASE_URL or not settings.SUPABASE_KEY:
+    if not settings.BUNNY_STORAGE_ZONE or not settings.BUNNY_API_KEY:
         return None
 
-    url = f"{settings.SUPABASE_URL}/storage/v1/object/{BUCKET}/{filename}"
+    url = f"https://{settings.BUNNY_STORAGE_REGION}/{settings.BUNNY_STORAGE_ZONE}/{STORAGE_PATH}/{filename}"
     headers = {
-        "Authorization":  f"Bearer {settings.SUPABASE_KEY}",
-        "Content-Type":   "image/jpeg",
-        "x-upsert":       "true",
+        "AccessKey":    settings.BUNNY_API_KEY,
+        "Content-Type": "image/jpeg",
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
-        res = await client.post(url, content=file_bytes, headers=headers)
-        if res.status_code in (200, 201):
-            return f"{settings.SUPABASE_URL}/storage/v1/object/public/{BUCKET}/{filename}"
+        res = await client.put(url, content=file_bytes, headers=headers)
+        if res.status_code == 201:
+            return f"{settings.BUNNY_CDN_URL.rstrip('/')}/{STORAGE_PATH}/{filename}"
         return None
 
 
