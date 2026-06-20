@@ -21,14 +21,24 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def _get_storage():
+async def _get_storage():
+    """
+    Try Redis first; fall back to MemoryStorage if the URL is unset or
+    the server is unreachable.  from_url() is lazy, so we ping explicitly.
+    """
+    if not settings.REDIS_URL:
+        logger.info("REDIS_URL not set — using MemoryStorage")
+        return MemoryStorage()
     try:
+        import redis.asyncio as aioredis
         from aiogram.fsm.storage.redis import RedisStorage
-        storage = RedisStorage.from_url(settings.REDIS_URL)
+        client = aioredis.from_url(settings.REDIS_URL, socket_connect_timeout=3)
+        await client.ping()
+        await client.aclose()
         logger.info("Using Redis FSM storage: %s", settings.REDIS_URL)
-        return storage
+        return RedisStorage.from_url(settings.REDIS_URL)
     except Exception as exc:
-        logger.warning("Redis unavailable (%s), falling back to MemoryStorage", exc)
+        logger.warning("Redis unavailable (%s) — falling back to MemoryStorage", exc)
         return MemoryStorage()
 
 
@@ -46,7 +56,7 @@ async def main():
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
 
-    dp = Dispatcher(storage=_get_storage())
+    dp = Dispatcher(storage=await _get_storage())
 
     # Middleware
     dp.message.middleware(ThrottlingMiddleware(rate=1.0, burst=5))
