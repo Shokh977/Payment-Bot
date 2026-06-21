@@ -21,9 +21,8 @@ router = Router()
 
 CODE_PATTERN = re.compile(r"^PAY-[A-Z0-9]{4}-[A-Z0-9]{4}$", re.IGNORECASE)
 
-def _fmt_money(tiyin: int) -> str:
-    som = tiyin // 100
-    return f"{som:,} so'm".replace(",", " ")
+def _fmt_money(amount: int) -> str:
+    return f"{amount:,} so'm".replace(",", " ")
 
 
 # ── Reference code handler ─────────────────────────────────────────────────────
@@ -66,10 +65,7 @@ async def handle_reference_code(message: Message, state: FSMContext):
     except Exception as exc:
         logger.error("get_enrollment_by_code failed: %s: %s", type(exc).__name__, exc)
         await wait_msg.delete()
-        await message.answer(
-            f"⚠️ Xato: <code>{type(exc).__name__}: {exc}</code>",
-            parse_mode="HTML",
-        )
+        await message.answer("⚠️ Ulanishda xato. Iltimos, birozdan keyin urinib ko'ring.")
         return
 
     await wait_msg.delete()
