@@ -70,6 +70,7 @@ async def main():
     dp.include_router(cancel.router)
     dp.include_router(payment_flow.router)
 
+    logger.info("API_BASE_URL resolved to: %r", settings.API_BASE_URL)
     logger.info("Starting Sahifalab Payment Bot (polling)...")
     await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
 
