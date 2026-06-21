@@ -66,10 +66,7 @@ async def handle_reference_code(message: Message, state: FSMContext):
     except Exception as exc:
         logger.error("get_enrollment_by_code failed: %s: %s", type(exc).__name__, exc)
         await wait_msg.delete()
-        await message.answer(
-            f"⚠️ Ulanishda xato.\n\n<code>{type(exc).__name__}: {exc}</code>",
-            parse_mode="HTML",
-        )
+        await message.answer("⚠️ Ulanishda xato. Iltimos, birozdan keyin urinib ko'ring.")
         return
 
     await wait_msg.delete()

@@ -26,6 +26,9 @@ class Settings:
         self.ADMIN_TELEGRAM_IDS = [
             int(x.strip()) for x in raw.split(",") if x.strip().isdigit()
         ]
+        # Ensure API_BASE_URL always has a scheme
+        if self.API_BASE_URL and not self.API_BASE_URL.startswith(("http://", "https://")):
+            self.API_BASE_URL = "https://" + self.API_BASE_URL
 
 
 settings = Settings()
