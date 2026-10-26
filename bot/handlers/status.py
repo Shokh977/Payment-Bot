@@ -16,7 +16,7 @@ STATUS_EMOJI = {
 STATUS_LABEL = {
     "awaiting_payment": "Screenshot kutilmoqda",
     "paid":             "Tasdiqlash kutilmoqda",
-    "granted":          "Kurs ochildi",
+    "granted":          "Tasdiqlandi",
     "cancelled":        "Bekor qilindi",
     "expired":          "Muddati tugagan",
 }
@@ -54,7 +54,7 @@ async def cmd_status(message: Message):
         em    = STATUS_EMOJI.get(item["status"], "❓")
         label = STATUS_LABEL.get(item["status"], item["status"])
         code  = item.get("reference_code", "—")
-        title = item.get("course", {}).get("title") if item.get("course") else f"Kurs #{item['course_id']}"
+        title = item.get("item_title") or ((item.get("course") or {}).get("title") or f"Kurs #{item['course_id']}")
         price = _fmt_money(item.get("expected_amount", 0))
 
         text = (
