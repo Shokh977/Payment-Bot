@@ -15,9 +15,9 @@ async def cmd_start(message: Message):
     await message.answer(
         "Assalomu alaykum! 👋\n\n"
         "Men <b>Sahifalab to'lov botiman</b>.\n"
-        "Kurslarni sotib olish va kirishni faollashtirish uchun shu yerdaman.\n\n"
+        "Kurslar va Sahifalab Pro uchun to'lovlarni shu yerda qabul qilaman.\n\n"
         "📋 <b>Qanday ishlatish:</b>\n"
-        "1. Sahifalab ilovasida kurs tanlang\n"
+        "1. Sahifalab ilovasida kurs yoki Pro tanlang\n"
         "2. \"Sotib olish\" tugmasini bosing\n"
         "3. To'lov kodingizni shu yerga yuboring\n"
         "   (masalan: <code>PAY-A3F2-B5C1</code>)\n\n"

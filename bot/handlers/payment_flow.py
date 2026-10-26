@@ -25,6 +25,11 @@ def _fmt_money(amount: int) -> str:
     return f"{amount:,} so'm".replace(",", " ")
 
 
+def _item_line(product: str | None, title: str) -> str:
+    """'📚 Kurs: …' for a course, '✨ Pro: …' for a Sahifalab Pro pass."""
+    return f"✨ Pro: <b>{title}</b>" if product == "pro" else f"📚 Kurs: <b>{title}</b>"
+
+
 # ── Reference code handler ─────────────────────────────────────────────────────
 
 @router.message(F.text.regexp(r"(?i)^PAY-[A-Z0-9]{4}-[A-Z0-9]{4}$"))
@@ -76,7 +81,7 @@ async def handle_reference_code(message: Message, state: FSMContext):
 
     text = (
         f"✅ <b>Kod tasdiqlandi!</b>\n\n"
-        f"📚 Kurs: <b>{enrollment['course_title']}</b>\n"
+        f"{_item_line(enrollment.get('product'), enrollment['course_title'])}\n"
         f"👤 Foydalanuvchi: <b>{enrollment['user_name']}</b>"
         + (f" (@{enrollment['user_username']})" if enrollment.get("user_username") else "")
         + f"\n💰 To'lov summasi: <b>{amount_str}</b>\n\n"
@@ -101,6 +106,7 @@ async def handle_reference_code(message: Message, state: FSMContext):
         enrollment_id=enrollment["id"],
         expected_amount=enrollment["expected_amount"],
         course_title=enrollment["course_title"],
+        product=enrollment.get("product", "course"),
         user_name=enrollment["user_name"],
         user_username=enrollment.get("user_username", ""),
         reference_code=enrollment.get("reference_code", ""),
@@ -172,7 +178,7 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
     await message.answer(
         "✅ <b>Screenshot saqlandi!</b>\n\n"
         "To'lovingiz tekshirilmoqda. Tasdiqlanishi bilan "
-        "Sahifalab ilovasiga bildirishnoma keladi va kurs ochiladi.\n\n"
+        "Sahifalab ilovasiga bildirishnoma keladi va xaridingiz ochiladi.\n\n"
         "⏳ Odatda 5–30 daqiqa kutiladi.\n\n"
         f"Tezroq bo'lishi uchun: {settings.SUPPORT_USERNAME} ga screenshot "
         "yuborib, kodingizni yozing.",
@@ -181,6 +187,7 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
 
     # Notify admins
     course_title  = data.get("course_title", "—")
+    product       = data.get("product", "course")
     user_name     = data.get("user_name", "—")
     user_username = data.get("user_username", "")
     exp_amount    = data.get("expected_amount", 0)
@@ -194,7 +201,7 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
         f"🔔 <b>YANGI TO'LOV TASDIQLASH KERAK</b>\n\n"
         f"📋 Kod: <code>{ref_code}</code>\n"
         f"👤 Foydalanuvchi: {user_display}\n"
-        f"📚 Kurs: {course_title}\n"
+        f"{_item_line(product, course_title)}\n"
         f"💰 Kutilgan summa: {_fmt_money(exp_amount)}\n"
         f"🕐 Yuborildi: hozirgina\n\n"
         f"📸 Screenshot pastda ↓"
@@ -264,6 +271,7 @@ async def cb_grant_ok(callback: CallbackQuery, state: FSMContext, bot: Bot):
     data = await state.get_data()
     user_tg_id = data.get("user_id")
     course     = data.get("course_title", "")
+    is_pro     = data.get("product") == "pro"
 
     try:
         await api_client.grant_enrollment(enrollment_id, amount, "card_transfer")
@@ -272,16 +280,24 @@ async def cb_grant_ok(callback: CallbackQuery, state: FSMContext, bot: Bot):
         return
 
     await state.clear()
-    await callback.message.answer("✅ Kurs ochildi va foydalanuvchiga bildirishnoma yuborildi.")
+    await callback.message.answer(
+        ("✅ Pro ochildi" if is_pro else "✅ Kurs ochildi") + " va foydalanuvchiga bildirishnoma yuborildi."
+    )
 
     if user_tg_id:
         try:
             await bot.send_message(
                 user_tg_id,
-                f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
-                f"To'lov tasdiqlandi va kurs sizga ochildi."
-                + (f"\n\n📚 <b>{course}</b>" if course else "")
-                + "\n\nSahifalab ilovasini oching va o'rganishni boshlang!",
+                (
+                    f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
+                    f"To'lov tasdiqlandi — <b>{course}</b> faol.\n\n"
+                    "Ilovada Sozlamalar → Mavzu va Profilni bezash bo'limlarini oching!"
+                ) if is_pro else (
+                    f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
+                    f"To'lov tasdiqlandi va kurs sizga ochildi."
+                    + (f"\n\n📚 <b>{course}</b>" if course else "")
+                    + "\n\nSahifalab ilovasini oching va o'rganishni boshlang!"
+                ),
                 parse_mode="HTML",
                 reply_markup=inline.open_app_kb(),
             )

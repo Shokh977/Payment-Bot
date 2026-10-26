@@ -33,7 +33,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
     if len(active) == 1:
         item = active[0]
         code  = item.get("reference_code", "—")
-        title = item.get("course", {}).get("title", f"Kurs #{item['course_id']}")
+        title = item.get("item_title") or (item.get("course") or {}).get("title", f"Kurs #{item['course_id']}")
         price = _fmt_money(item.get("expected_amount", 0))
         await message.answer(
             f"<b>So'rovni bekor qilish:</b>\n\n"
@@ -50,7 +50,7 @@ async def cmd_cancel(message: Message, state: FSMContext):
     b = InlineKeyboardBuilder()
     num_emojis = ["1️⃣", "2️⃣", "3️⃣", "4️⃣", "5️⃣"]
     for i, item in enumerate(active[:5]):
-        title = item.get("course", {}).get("title", f"Kurs #{item['course_id']}")
+        title = item.get("item_title") or (item.get("course") or {}).get("title", f"Kurs #{item['course_id']}")
         price = _fmt_money(item.get("expected_amount", 0))
         b.button(text=f"{num_emojis[i]} {title} — {price}", callback_data=f"cancel_pick:{item['id']}")
     b.button(text="🔙 Bekor qilmaslik", callback_data="cancel_abort")

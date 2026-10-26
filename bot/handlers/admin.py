@@ -67,7 +67,7 @@ async def cmd_admin_pending(message: Message):
         course = item.get("course", {}) or {}
         name   = user.get("first_name", f"#{item['user_id']}")
         uname  = f" (@{user['username']})" if user.get("username") else ""
-        title  = course.get("title", f"Kurs #{item['course_id']}")
+        title  = item.get("item_title") or course.get("title", f"Kurs #{item['course_id']}")
         price  = _fmt_money(item.get("expected_amount", 0))
 
         text = (

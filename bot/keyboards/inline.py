@@ -29,7 +29,7 @@ def admin_notification_kb(enrollment_id: int, admin_url: str, expected_amount: i
 
 def admin_confirm_kb(enrollment_id: int, amount: int) -> InlineKeyboardMarkup:
     b = InlineKeyboardBuilder()
-    b.button(text="✅ Ha, kursni ochish", callback_data=f"grant_ok:{enrollment_id}:{amount}")
+    b.button(text="✅ Ha, tasdiqlash",   callback_data=f"grant_ok:{enrollment_id}:{amount}")
     b.button(text="❌ Yo'q, bekor",       callback_data=f"grant_cancel:{enrollment_id}")
     b.adjust(1)
     return b.as_markup()
