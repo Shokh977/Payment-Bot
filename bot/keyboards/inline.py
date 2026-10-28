@@ -65,3 +65,26 @@ def open_app_kb(course_slug: str = "") -> InlineKeyboardMarkup:
     b.button(text="📱 Ilovani ochish", url=settings.APP_DEEP_LINK)
     b.adjust(1)
     return b.as_markup()
+
+
+# ── Private channel "SAHIFALAB homiylari" ──────────────────────────────────────
+
+def sponsor_menu_kb() -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="🔒 Yopiq kanal — SAHIFALAB homiylari ga qo'shilish", callback_data="sponsor_join")
+    b.adjust(1)
+    return b.as_markup()
+
+
+def channel_invite_kb(invite_link: str) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="🔒 Kanalga qo'shilish", url=invite_link)
+    b.adjust(1)
+    return b.as_markup()
+
+
+def channel_resend_kb(user_id: int) -> InlineKeyboardMarkup:
+    b = InlineKeyboardBuilder()
+    b.button(text="🔁 Havolani qayta yuborish", callback_data=f"sponsor_resend:{user_id}")
+    b.adjust(1)
+    return b.as_markup()

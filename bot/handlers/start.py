@@ -11,6 +11,9 @@ router = Router()
 async def cmd_start(message: Message):
     builder = InlineKeyboardBuilder()
     builder.button(text="📱 Sahifalab ilovasini ochish", url=settings.APP_DEEP_LINK)
+    if settings.SPONSOR_CHANNEL_ID:
+        builder.button(text="🔒 Yopiq kanal — SAHIFALAB homiylari", callback_data="sponsor_menu")
+    builder.adjust(1)
 
     await message.answer(
         "Assalomu alaykum! 👋\n\n"
@@ -36,6 +39,7 @@ async def cmd_help(message: Message):
         "/start — Botni qayta ishga tushirish\n"
         "/status — Mening so'rovlarim\n"
         "/cancel — So'rovni bekor qilish\n"
+        "/homiy — SAHIFALAB homiylari yopiq kanali\n"
         "/help — Bu yordam\n\n"
         "📚 <b>Qanday kurs sotib olish:</b>\n"
         "1. Sahifalab ilovasini oching\n"

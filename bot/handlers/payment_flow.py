@@ -1,6 +1,7 @@
 """
 Core payment flow: reference code → payment instructions → screenshot → admin notify.
 """
+import html
 import re
 import logging
 from datetime import datetime, timezone
@@ -11,8 +12,8 @@ from aiogram.fsm.context import FSMContext
 import httpx
 
 from bot.config import settings
-from bot.states.payment import PaymentStates
-from bot.services import api_client, storage
+from bot.states.payment import AdminApprovalStates, PaymentStates
+from bot.services import api_client, channel, storage
 from bot.keyboards import inline
 
 logger = logging.getLogger(__name__)
@@ -26,8 +27,56 @@ def _fmt_money(amount: int) -> str:
 
 
 def _item_line(product: str | None, title: str) -> str:
-    """'📚 Kurs: …' for a course, '✨ Pro: …' for a Sahifalab Pro pass."""
-    return f"✨ Pro: <b>{title}</b>" if product == "pro" else f"📚 Kurs: <b>{title}</b>"
+    """'📚 Kurs: …' for a course, '✨ Pro: …' for a Pro pass, '🔒 Kanal: …' for the private channel."""
+    if product == "pro":
+        return f"✨ Pro: <b>{title}</b>"
+    if product == "channel":
+        return f"🔒 Kanal: <b>{title}</b>"
+    return f"📚 Kurs: <b>{title}</b>"
+
+
+def instructions_text(enrollment: dict, heading: str = "✅ <b>Kod tasdiqlandi!</b>") -> str:
+    """The item, the amount and the card to pay to."""
+    amount_str  = _fmt_money(enrollment["expected_amount"])
+    card_num    = settings.PAYMENT_CARD_NUMBER or "—"
+    card_holder = settings.PAYMENT_CARD_HOLDER
+    return (
+        f"{heading}\n\n"
+        f"{_item_line(enrollment.get('product'), enrollment['course_title'])}\n"
+        f"👤 Foydalanuvchi: <b>{enrollment['user_name']}</b>"
+        + (f" (@{enrollment['user_username']})" if enrollment.get("user_username") else "")
+        + f"\n💰 To'lov summasi: <b>{amount_str}</b>\n\n"
+        f"{'━' * 22}\n"
+        f"💳 <b>KARTA ORQALI TO'LOV</b>\n"
+        f"{'━' * 22}\n\n"
+        f"Karta raqami:\n"
+        f"<b><code>{card_num}</code></b>\n\n"
+        f"Karta egasi:\n"
+        f"<b>{card_holder}</b>\n\n"
+        f"To'lov turi: Click yoki Payme orqali karta o'tkazma\n\n"
+        f"{'━' * 22}\n\n"
+        f"⚠️ <b>MUHIM:</b>\n"
+        f"• Aniq summa to'lang: <b>{amount_str}</b>\n"
+        f"• To'lov izohiga hech narsa yozmang\n\n"
+        f"{'━' * 22}\n\n"
+        f"📸 To'lovni qilgach, <b>screenshot yuboring</b>.\n"
+        f"Tasdiqlash 5–30 daqiqada amalga oshiriladi."
+    )
+
+
+async def await_screenshot(state: FSMContext, enrollment: dict) -> None:
+    """Remember the request in the buyer's chat and wait for the receipt."""
+    await state.update_data(
+        enrollment_id=enrollment["id"],
+        expected_amount=enrollment["expected_amount"],
+        course_title=enrollment["course_title"],
+        product=enrollment.get("product", "course"),
+        user_name=enrollment["user_name"],
+        user_username=enrollment.get("user_username", ""),
+        reference_code=enrollment.get("reference_code", ""),
+        user_id=enrollment["user_id"],
+    )
+    await state.set_state(PaymentStates.waiting_for_screenshot)
 
 
 # ── Reference code handler ─────────────────────────────────────────────────────
@@ -75,49 +124,12 @@ async def handle_reference_code(message: Message, state: FSMContext):
 
     await wait_msg.delete()
 
-    amount_str = _fmt_money(enrollment["expected_amount"])
-    card_num   = settings.PAYMENT_CARD_NUMBER or "—"
-    card_holder = settings.PAYMENT_CARD_HOLDER
-
-    text = (
-        f"✅ <b>Kod tasdiqlandi!</b>\n\n"
-        f"{_item_line(enrollment.get('product'), enrollment['course_title'])}\n"
-        f"👤 Foydalanuvchi: <b>{enrollment['user_name']}</b>"
-        + (f" (@{enrollment['user_username']})" if enrollment.get("user_username") else "")
-        + f"\n💰 To'lov summasi: <b>{amount_str}</b>\n\n"
-        f"{'━' * 22}\n"
-        f"💳 <b>KARTA ORQALI TO'LOV</b>\n"
-        f"{'━' * 22}\n\n"
-        f"Karta raqami:\n"
-        f"<b><code>{card_num}</code></b>\n\n"
-        f"Karta egasi:\n"
-        f"<b>{card_holder}</b>\n\n"
-        f"To'lov turi: Click yoki Payme orqali karta o'tkazma\n\n"
-        f"{'━' * 22}\n\n"
-        f"⚠️ <b>MUHIM:</b>\n"
-        f"• Aniq summa to'lang: <b>{amount_str}</b>\n"
-        f"• To'lov izohiga hech narsa yozmang\n\n"
-        f"{'━' * 22}\n\n"
-        f"📸 To'lovni qilgach, <b>screenshot yuboring</b>.\n"
-        f"Tasdiqlash 5–30 daqiqada amalga oshiriladi."
-    )
-
-    await state.update_data(
-        enrollment_id=enrollment["id"],
-        expected_amount=enrollment["expected_amount"],
-        course_title=enrollment["course_title"],
-        product=enrollment.get("product", "course"),
-        user_name=enrollment["user_name"],
-        user_username=enrollment.get("user_username", ""),
-        reference_code=enrollment.get("reference_code", ""),
-        user_id=enrollment["user_id"],
-    )
-    await state.set_state(PaymentStates.waiting_for_screenshot)
+    await await_screenshot(state, enrollment)
 
     await message.answer(
-        text,
+        instructions_text(enrollment),
         parse_mode="HTML",
-        reply_markup=inline.payment_instructions_kb(enrollment["id"], card_num),
+        reply_markup=inline.payment_instructions_kb(enrollment["id"], settings.PAYMENT_CARD_NUMBER or "—"),
     )
 
 
@@ -175,10 +187,14 @@ async def handle_screenshot(message: Message, state: FSMContext, bot: Bot):
     await state.clear()
     await ack.delete()
 
+    where = (
+        "shu yerga kanalga kirish havolasi keladi."
+        if data.get("product") == "channel"
+        else "Sahifalab ilovasiga bildirishnoma keladi va xaridingiz ochiladi."
+    )
     await message.answer(
         "✅ <b>Screenshot saqlandi!</b>\n\n"
-        "To'lovingiz tekshirilmoqda. Tasdiqlanishi bilan "
-        "Sahifalab ilovasiga bildirishnoma keladi va xaridingiz ochiladi.\n\n"
+        f"To'lovingiz tekshirilmoqda. Tasdiqlanishi bilan {where}\n\n"
         "⏳ Odatda 5–30 daqiqa kutiladi.\n\n"
         f"Tezroq bo'lishi uchun: {settings.SUPPORT_USERNAME} ga screenshot "
         "yuborib, kodingizni yozing.",
@@ -267,42 +283,38 @@ async def cb_grant_ok(callback: CallbackQuery, state: FSMContext, bot: Bot):
     amount        = int(parts[2])
     await callback.answer("Ishlanmoqda...")
 
-    # Get user data BEFORE clearing state
-    data = await state.get_data()
-    user_tg_id = data.get("user_id")
-    course     = data.get("course_title", "")
-    is_pro     = data.get("product") == "pro"
-
+    # The buyer comes from the request itself: this is the admin's chat, so
+    # its FSM state holds nothing about the buyer.
     try:
+        pending = await api_client.get_enrollment(enrollment_id)
         await api_client.grant_enrollment(enrollment_id, amount, "card_transfer")
     except Exception as exc:
         await callback.message.answer(f"❌ Xato: {exc}")
         return
 
     await state.clear()
-    await callback.message.answer(
-        ("✅ Pro ochildi" if is_pro else "✅ Kurs ochildi") + " va foydalanuvchiga bildirishnoma yuborildi."
-    )
+    product = pending.get("product")
 
-    if user_tg_id:
-        try:
-            await bot.send_message(
-                user_tg_id,
-                (
-                    f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
-                    f"To'lov tasdiqlandi — <b>{course}</b> faol.\n\n"
-                    "Ilovada Sozlamalar → Mavzu va Profilni bezash bo'limlarini oching!"
-                ) if is_pro else (
-                    f"🎉 <b>TABRIKLAYMIZ!</b>\n\n"
-                    f"To'lov tasdiqlandi va kurs sizga ochildi."
-                    + (f"\n\n📚 <b>{course}</b>" if course else "")
-                    + "\n\nSahifalab ilovasini oching va o'rganishni boshlang!"
-                ),
-                parse_mode="HTML",
-                reply_markup=inline.open_app_kb(),
-            )
-        except Exception as exc:
-            logger.warning("Failed to notify user %s: %s", user_tg_id, exc)
+    if product != "channel":
+        # The backend sends the buyer the in-app and Telegram notifications.
+        await callback.message.answer(
+            ("✅ Pro ochildi" if product == "pro" else "✅ Kurs ochildi") + " va foydalanuvchiga bildirishnoma yuborildi."
+        )
+        return
+
+    user_tg_id = pending["user_id"]
+    try:
+        await channel.send_invite(bot, user_tg_id)
+    except Exception as exc:
+        logger.warning("Channel invite to %s failed: %s", user_tg_id, exc)
+        await callback.message.answer(
+            "✅ To'lov tasdiqlandi, lekin kanal havolasi yuborilmadi.\n\n"
+            f"Sabab: {exc}\n\n"
+            "Bot kanalda admin ekanini va «Invite users via link» huquqi borligini tekshiring.",
+            reply_markup=inline.channel_resend_kb(user_tg_id),
+        )
+        return
+    await callback.message.answer("✅ To'lov tasdiqlandi — foydalanuvchiga kanalga kirish havolasi yuborildi.")
 
 
 @router.callback_query(F.data.startswith("grant_cancel:"))
@@ -322,7 +334,6 @@ async def cb_admin_reject(callback: CallbackQuery, state: FSMContext):
         "Sababini tanlang:",
         reply_markup=inline.reject_reason_kb(enrollment_id),
     )
-    from bot.states.payment import AdminApprovalStates
     await state.update_data(enrollment_id=enrollment_id)
     await state.set_state(AdminApprovalStates.selecting_reject_reason)
 
@@ -344,35 +355,50 @@ async def cb_reject_reason(callback: CallbackQuery, state: FSMContext, bot: Bot)
 
     if reason_key == "custom":
         await callback.message.answer("Sababini yozing:")
-        from bot.states.payment import AdminApprovalStates
         await state.set_state(AdminApprovalStates.entering_custom_reason)
         return
 
     reason_text = REJECT_LABELS.get(reason_key, reason_key)
-    await _do_reject(callback, state, bot, enrollment_id, reason_text)
+    await _do_reject(callback.message, state, bot, enrollment_id, reason_text)
 
 
-async def _do_reject(callback_or_msg, state, bot, enrollment_id: int, reason: str):
+@router.message(AdminApprovalStates.entering_custom_reason, F.text)
+async def handle_custom_reason(message: Message, state: FSMContext, bot: Bot):
+    enrollment_id = (await state.get_data()).get("enrollment_id")
+    if not enrollment_id:
+        await state.clear()
+        await message.answer("❌ So'rov topilmadi. Bildirishnomadagi «Bekor qilish» tugmasini qayta bosing.")
+        return
+    await _do_reject(message, state, bot, int(enrollment_id), message.text.strip()[:300])
+
+
+async def _do_reject(reply_to: Message, state: FSMContext, bot: Bot, enrollment_id: int, reason: str):
+    # The buyer comes from the request, not from this (the admin's) FSM state.
     try:
+        pending = await api_client.get_enrollment(enrollment_id)
         await api_client.cancel_enrollment(enrollment_id, reason)
     except Exception as exc:
-        await callback_or_msg.answer(f"❌ Xato: {exc}")
+        await reply_to.answer(f"❌ Xato: {exc}")
         return
 
-    await callback_or_msg.answer("✅ So'rov bekor qilindi.")
     await state.clear()
+    await reply_to.answer("✅ So'rov bekor qilindi.")
 
-    data = await state.get_data()
-    user_tg_id = data.get("user_id")
+    next_step = (
+        "Qayta urinish uchun /homiy buyrug'ini yuboring."
+        if pending.get("product") == "channel"
+        else "Sahifalab ilovasidan yangi kod oling."
+    )
+    user_tg_id = pending.get("user_id")
     if user_tg_id:
         try:
             await bot.send_message(
                 user_tg_id,
                 "❌ <b>To'lov tasdiqlanmadi.</b>\n\n"
-                f"Sabab: {reason}\n\n"
+                f"Sabab: {html.escape(reason)}\n\n"
                 "Iltimos, qaytadan urinib ko'ring yoki "
                 f"{settings.SUPPORT_USERNAME} kanaliga yozing.\n\n"
-                "Sahifalab ilovasidan yangi kod oling.",
+                f"{next_step}",
                 parse_mode="HTML",
             )
         except Exception as exc:
