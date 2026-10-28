@@ -20,12 +20,16 @@ class Settings:
     PAYMENT_CARD_HOLDER: str     = os.getenv("PAYMENT_CARD_HOLDER", "Sahifalab Project")
     SUPPORT_USERNAME: str        = os.getenv("SUPPORT_USERNAME", "@sahifalab")
     APP_DEEP_LINK: str           = os.getenv("APP_DEEP_LINK", "https://sahifalab.uz")
+    # Private channel "SAHIFALAB homiylari" (-100…). Empty = the option is hidden.
+    SPONSOR_CHANNEL_ID: int      = 0
 
     def __post_init__(self):
         raw = os.getenv("ADMIN_TELEGRAM_IDS", "")
         self.ADMIN_TELEGRAM_IDS = [
             int(x.strip()) for x in raw.split(",") if x.strip().isdigit()
         ]
+        raw_channel = os.getenv("SPONSOR_CHANNEL_ID", "").strip()
+        self.SPONSOR_CHANNEL_ID = int(raw_channel) if raw_channel.lstrip("-").isdigit() else 0
         # Strip whitespace/CR and ensure scheme is present
         self.API_BASE_URL = self.API_BASE_URL.strip()
         if self.API_BASE_URL and not self.API_BASE_URL.startswith(("http://", "https://")):

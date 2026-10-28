@@ -92,3 +92,46 @@ async def get_pending_paid_enrollments() -> list[dict]:
         )
         res.raise_for_status()
         return res.json().get("items", [])
+
+
+async def get_enrollment(enrollment_id: int) -> dict:
+    """One pending row with user_id, product and item_title."""
+    async with httpx.AsyncClient(timeout=10) as client:
+        res = await client.get(f"{API}/api/admin/pending-enrollments/{enrollment_id}", headers=_HEADERS)
+        res.raise_for_status()
+        return res.json()
+
+
+# ── Private channel "SAHIFALAB homiylari" (111_sponsor_channel) ───────────────
+
+async def get_sponsor_config() -> dict:
+    async with httpx.AsyncClient(timeout=10) as client:
+        res = await client.get(f"{API}/api/admin/sponsor-channel/config", headers=_HEADERS)
+        res.raise_for_status()
+        return res.json()
+
+
+async def set_sponsor_price(price: int) -> dict:
+    async with httpx.AsyncClient(timeout=10) as client:
+        res = await client.put(f"{API}/api/admin/sponsor-channel/config", json={"price": price}, headers=_HEADERS)
+        res.raise_for_status()
+        return res.json()
+
+
+async def open_sponsor_request(telegram_id: int, first_name: str | None, username: str | None) -> dict:
+    """The buyer's open request (or a new one); status 'granted' = already has access."""
+    async with httpx.AsyncClient(timeout=15) as client:
+        res = await client.post(
+            f"{API}/api/admin/sponsor-channel/request",
+            json={"telegram_id": telegram_id, "first_name": first_name, "username": username},
+            headers=_HEADERS,
+        )
+        res.raise_for_status()
+        return res.json()
+
+
+async def has_sponsor_access(telegram_id: int) -> bool:
+    async with httpx.AsyncClient(timeout=10) as client:
+        res = await client.get(f"{API}/api/admin/sponsor-channel/access/{telegram_id}", headers=_HEADERS)
+        res.raise_for_status()
+        return bool(res.json().get("granted"))

@@ -11,7 +11,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.config import settings
 from bot.middleware.throttling import ThrottlingMiddleware
 from bot.middleware.logging import AuditLoggingMiddleware
-from bot.handlers import start, payment_flow, status, cancel, admin
+from bot.handlers import start, payment_flow, status, cancel, admin, sponsor
 
 logging.basicConfig(
     level=logging.INFO,
@@ -65,6 +65,7 @@ async def main():
 
     # Routers (order matters — specific before generic)
     dp.include_router(admin.router)
+    dp.include_router(sponsor.router)  # before start: it owns /start homiy
     dp.include_router(start.router)
     dp.include_router(status.router)
     dp.include_router(cancel.router)
