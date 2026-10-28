@@ -1,8 +1,8 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import Command
 from aiogram.types import Message
 from bot.services import api_client
-from bot.keyboards.inline import status_item_kb
+from bot.keyboards.inline import BTN_STATUS, status_item_kb
 
 router = Router()
 
@@ -27,6 +27,7 @@ def _fmt_money(tiyin: int) -> str:
 
 
 @router.message(Command("status"))
+@router.message(F.text == BTN_STATUS)
 async def cmd_status(message: Message):
     user_id = message.from_user.id
     wait = await message.answer("🔍 Yuklanmoqda...")

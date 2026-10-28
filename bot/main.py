@@ -11,7 +11,9 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from bot.config import settings
 from bot.middleware.throttling import ThrottlingMiddleware
 from bot.middleware.logging import AuditLoggingMiddleware
-from bot.handlers import start, payment_flow, status, cancel, admin, sponsor
+from aiogram.types import BotCommand
+
+from bot.handlers import start, payment_flow, status, cancel, admin, sponsor, fallback
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,6 +44,35 @@ async def _get_storage():
         return MemoryStorage()
 
 
+DESCRIPTION = (
+    "Sahifalab to'lov boti: kurslar, Sahifalab Pro va SAHIFALAB homiylari "
+    "yopiq kanali uchun to'lovlar.\n\n"
+    "Boshlash uchun pastdagi «START» tugmasini bosing 👇"
+)
+SHORT_DESCRIPTION = "Sahifalab kurslari, Pro va homiylar kanali uchun to'lovlar"
+
+
+async def _setup_profile(bot: Bot) -> None:
+    """The ☰ Menu commands, and the text shown above START in an empty chat
+    (only when none is set, so one written in BotFather is kept)."""
+    commands = [BotCommand(command="start", description="Botni ishga tushirish")]
+    if settings.SPONSOR_CHANNEL_ID:
+        commands.append(BotCommand(command="homiy", description="SAHIFALAB homiylari yopiq kanali"))
+    commands += [
+        BotCommand(command="status", description="Mening so'rovlarim"),
+        BotCommand(command="cancel", description="So'rovni bekor qilish"),
+        BotCommand(command="help", description="Yordam"),
+    ]
+    try:
+        await bot.set_my_commands(commands)
+        if not (await bot.get_my_description()).description:
+            await bot.set_my_description(DESCRIPTION)
+        if not (await bot.get_my_short_description()).short_description:
+            await bot.set_my_short_description(SHORT_DESCRIPTION)
+    except Exception as exc:
+        logger.warning("Bot profile setup failed: %s", exc)
+
+
 async def main():
     if not settings.BOT_TOKEN:
         logger.error("BOT_TOKEN is not set. Set it in .env and restart.")
@@ -70,6 +101,9 @@ async def main():
     dp.include_router(status.router)
     dp.include_router(cancel.router)
     dp.include_router(payment_flow.router)
+    dp.include_router(fallback.router)  # last: anything nothing else handled
+
+    await _setup_profile(bot)
 
     logger.info("API_BASE_URL resolved to: %r", settings.API_BASE_URL)
     logger.info("Starting Sahifalab Payment Bot (polling)...")

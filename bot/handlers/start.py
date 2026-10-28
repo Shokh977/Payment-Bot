@@ -1,37 +1,43 @@
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
-from aiogram.utils.keyboard import InlineKeyboardBuilder
 from bot.config import settings
+from bot.keyboards.inline import BTN_HELP, main_reply_kb
 
 router = Router()
 
 
-@router.message(CommandStart())
-async def cmd_start(message: Message):
-    builder = InlineKeyboardBuilder()
-    builder.button(text="📱 Sahifalab ilovasini ochish", url=settings.APP_DEEP_LINK)
-    if settings.SPONSOR_CHANNEL_ID:
-        builder.button(text="🔒 Yopiq kanal — SAHIFALAB homiylari", callback_data="sponsor_menu")
-    builder.adjust(1)
-
+async def send_welcome(message: Message) -> None:
+    """The greeting, with the buttons under the input field."""
+    channel_line = (
+        "🔒 <b>SAHIFALAB homiylari</b> yopiq kanaliga qo'shilish uchun "
+        "pastdagi «🔒 Homiylar kanali» tugmasini bosing.\n\n"
+        if settings.SPONSOR_CHANNEL_ID else ""
+    )
     await message.answer(
         "Assalomu alaykum! 👋\n\n"
         "Men <b>Sahifalab to'lov botiman</b>.\n"
         "Kurslar va Sahifalab Pro uchun to'lovlarni shu yerda qabul qilaman.\n\n"
-        "📋 <b>Qanday ishlatish:</b>\n"
-        "1. Sahifalab ilovasida kurs yoki Pro tanlang\n"
+        f"{channel_line}"
+        "📋 <b>Kurs yoki Pro uchun:</b>\n"
+        f"1. <a href=\"{settings.APP_DEEP_LINK}\">Sahifalab ilovasida</a> kurs yoki Pro tanlang\n"
         "2. \"Sotib olish\" tugmasini bosing\n"
         "3. To'lov kodingizni shu yerga yuboring\n"
         "   (masalan: <code>PAY-A3F2-B5C1</code>)\n\n"
-        "Boshlash uchun to'lov kodingizni yuboring.\n\n"
         f"✉️ Yordam kerakmi? {settings.SUPPORT_USERNAME} kanaliga yozing.",
-        reply_markup=builder.as_markup(),
+        reply_markup=main_reply_kb(),
         parse_mode="HTML",
+        disable_web_page_preview=True,
     )
 
 
+@router.message(CommandStart())
+async def cmd_start(message: Message):
+    await send_welcome(message)
+
+
 @router.message(Command("help"))
+@router.message(F.text == BTN_HELP)
 async def cmd_help(message: Message):
     await message.answer(
         "🤖 <b>Sahifalab To'lov Boti — Yordam</b>\n\n"
