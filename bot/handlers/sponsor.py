@@ -54,6 +54,7 @@ async def start_homiy(message: Message, state: FSMContext):
 
 
 @router.message(Command("homiy"))
+@router.message(F.text == inline.BTN_CHANNEL)
 async def cmd_homiy(message: Message, state: FSMContext):
     await state.clear()
     await _show_menu(message)

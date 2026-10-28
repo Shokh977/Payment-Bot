@@ -1,5 +1,5 @@
-from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.types import InlineKeyboardMarkup
+from aiogram.utils.keyboard import InlineKeyboardBuilder, ReplyKeyboardBuilder
+from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 REJECT_REASONS = [
     ("payment_not_found",  "📸 To'lov topilmadi"),
@@ -88,3 +88,24 @@ def channel_resend_kb(user_id: int) -> InlineKeyboardMarkup:
     b.button(text="🔁 Havolani qayta yuborish", callback_data=f"sponsor_resend:{user_id}")
     b.adjust(1)
     return b.as_markup()
+
+
+# ── Reply keyboard under the input field (always visible) ─────────────────────
+
+BTN_CHANNEL = "🔒 Homiylar kanali"
+BTN_STATUS  = "📋 Mening so'rovlarim"
+BTN_HELP    = "❓ Yordam"
+
+
+def main_reply_kb() -> ReplyKeyboardMarkup:
+    from bot.config import settings
+    b = ReplyKeyboardBuilder()
+    if settings.SPONSOR_CHANNEL_ID:
+        b.button(text=BTN_CHANNEL)
+    b.button(text=BTN_STATUS)
+    b.button(text=BTN_HELP)
+    if settings.SPONSOR_CHANNEL_ID:
+        b.adjust(1, 2)
+    else:
+        b.adjust(2)
+    return b.as_markup(resize_keyboard=True, is_persistent=True)
