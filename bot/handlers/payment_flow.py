@@ -258,6 +258,14 @@ async def cb_resend_screenshot(callback: CallbackQuery, state: FSMContext):
     )
 
 
+def _admin_error(exc: Exception) -> str:
+    """A 400 means the request was already approved or rejected (e.g. on
+    the web dashboard) — say so instead of showing the raw HTTP error."""
+    if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code == 400:
+        return "ℹ️ Bu so'rov allaqachon ko'rib chiqilgan (tasdiqlangan yoki bekor qilingan)."
+    return f"❌ Xato: {exc}"
+
+
 # ── Admin approval callbacks ───────────────────────────────────────────────────
 
 @router.callback_query(F.data.startswith("admin_approve:"))
@@ -289,7 +297,7 @@ async def cb_grant_ok(callback: CallbackQuery, state: FSMContext, bot: Bot):
         pending = await api_client.get_enrollment(enrollment_id)
         await api_client.grant_enrollment(enrollment_id, amount, "card_transfer")
     except Exception as exc:
-        await callback.message.answer(f"❌ Xato: {exc}")
+        await callback.message.answer(_admin_error(exc))
         return
 
     await state.clear()
@@ -378,7 +386,8 @@ async def _do_reject(reply_to: Message, state: FSMContext, bot: Bot, enrollment_
         pending = await api_client.get_enrollment(enrollment_id)
         await api_client.cancel_enrollment(enrollment_id, reason)
     except Exception as exc:
-        await reply_to.answer(f"❌ Xato: {exc}")
+        await state.clear()
+        await reply_to.answer(_admin_error(exc))
         return
 
     await state.clear()
