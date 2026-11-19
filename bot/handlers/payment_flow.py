@@ -83,7 +83,14 @@ async def await_screenshot(state: FSMContext, enrollment: dict) -> None:
 
 @router.message(F.text.regexp(r"(?i)^PAY-[A-Z0-9]{4}-[A-Z0-9]{4}$"))
 async def handle_reference_code(message: Message, state: FSMContext):
-    code = message.text.strip().upper()
+    await process_code(message, state, message.text)
+
+
+async def process_code(message: Message, state: FSMContext, raw_code: str):
+    """Check a PAY code and send the payment instructions. Typed by the user,
+    or carried in the app's link (t.me/<bot>?start=PAY-XXXX-YYYY, see
+    start.py), so they never have to copy it."""
+    code = raw_code.strip().upper()
     wait_msg = await message.answer("🔍 Kod tekshirilmoqda...")
 
     try:
