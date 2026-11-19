@@ -1,5 +1,6 @@
 from aiogram import Router, F
-from aiogram.filters import CommandStart, Command
+from aiogram.filters import CommandStart, Command, CommandObject
+from aiogram.fsm.context import FSMContext
 from aiogram.types import Message
 from bot.config import settings
 from bot.keyboards.inline import BTN_HELP, main_reply_kb
@@ -29,6 +30,17 @@ async def send_welcome(message: Message) -> None:
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+
+
+@router.message(CommandStart(deep_link=True, magic=F.args.regexp(r"(?i)^PAY-[A-Z0-9]{4}-[A-Z0-9]{4}$")))
+async def cmd_start_with_code(message: Message, command: CommandObject, state: FSMContext):
+    """The app opens t.me/<bot>?start=PAY-XXXX-YYYY: go straight to paying."""
+    from bot.handlers.payment_flow import process_code  # payment_flow's router comes later
+    await message.answer(
+        "👋 Assalomu alaykum! Sahifalab ilovasidagi kodingiz qabul qilindi.",
+        reply_markup=main_reply_kb(),
+    )
+    await process_code(message, state, command.args)
 
 
 @router.message(CommandStart())
